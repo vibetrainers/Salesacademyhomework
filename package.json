@@ -1,0 +1,11 @@
+{
+  "name": "domashki",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev/mock-supabase.mjs"
+  },
+  "devDependencies": {
+    "pg": "^8.23.1"
+  }
+}
