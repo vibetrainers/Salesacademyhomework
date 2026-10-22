@@ -721,15 +721,16 @@ function adminExport(body, { participants }) {
 
 function adminSettings(body) {
   const { branches, products, deadlines } = state.config;
-  const dateValue = (iso) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { timeZone: TZ }) : "");
+  // поле datetime-local показывает время Алматы (UTC+5)
+  const dateValue = (iso) => (iso ? new Date(iso).toLocaleString("sv-SE", { timeZone: TZ }).replace(" ", "T").slice(0, 16) : "");
   body.innerHTML = `
     <form class="card" id="settingsForm">
       <h2>Сроки сдачи</h2>
-      <p class="muted">До конца выбранного дня (по времени Алматы) участники могут сдать и изменить ответ. Пустая дата — без срока.</p>
+      <p class="muted">До указанных даты и времени (по Алматы) участники могут сдать и изменить ответ. Пустое поле — без срока.</p>
       ${LESSONS.map((l) => `
         <div class="deadline-row">
           <label for="dl${l.id}">${esc(l.title)} — ${esc(l.description)}</label>
-          <input type="date" id="dl${l.id}" value="${dateValue(deadlines[l.id])}">
+          <input type="datetime-local" id="dl${l.id}" value="${dateValue(deadlines[l.id])}">
         </div>`).join("")}
       <div class="settings-grid" style="margin-top:16px">
         <label>Филиалы — каждый с новой строки<textarea id="branchesInput">${esc(branches.join("\n"))}</textarea></label>
@@ -755,7 +756,7 @@ function adminSettings(body) {
     const newDeadlines = {};
     LESSONS.forEach((l) => {
       const v = document.getElementById(`dl${l.id}`).value;
-      if (v) newDeadlines[l.id] = `${v}T23:59:59+05:00`;
+      if (v) newDeadlines[l.id] = `${v}:00+05:00`;
     });
     try {
       state.config = await rpc("admin_save_settings", {
