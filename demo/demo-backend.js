@@ -1,7 +1,7 @@
 // Демо-режим: те же функции, что в supabase/schema.sql, но в браузере (localStorage).
 // Данные вымышленные и хранятся только на этом компьютере.
 (function () {
-  const KEY = "dz_demo_db_v1";
+  const KEY = "dz_demo_db_v2";
   const ADMIN_PASSWORD = "demo2026";
   const DAY = 864e5;
 
@@ -25,13 +25,14 @@
   ];
 
   function seed() {
-    const codes = ["DEMO2026", "K7M4Q2XA", "P3RT8WZB", "H9NC2VKE", "Y5DF6GMJ", "T2QX7HRS"];
+    const codes = { DEMO2026: "master", K7M4Q2XA: "master", P3RT8WZB: "master", H9NC2VKE: "master", Y5DF6GMJ: "master",
+      EXPT2026: "expert", T2QX7HRS: "expert", W8BN3CFL: "expert" };
     const a = (code, lesson, branch, products, text, days, hours) => ({
       id: `demo-${code}-${lesson}`, code, lesson_id: lesson, branch, products, text,
       file_path: null, file_name: null, file_type: null, created_at: ago(days, hours), updated_at: ago(days, hours),
     });
     return {
-      participants: codes.map((code, i) => ({ code, active: true, created_at: ago(9, i) })),
+      participants: Object.entries(codes).map(([code, level], i) => ({ code, level, active: true, created_at: ago(9, i) })),
       answers: [
         a("K7M4Q2XA", 1, "Алматинский городской филиал", ["Депозиты"],
           "Диалог 1. Клиентка пришла закрыть депозит. Вместо того чтобы сразу оформлять, спросила, на что нужны деньги — ремонт через полгода. Предложила частичное снятие и оставить остаток на депозите.\n\nДиалог 2. Клиент спросил про курс валют. Уточнила, как часто делает переводы — выяснилось, что каждый месяц отправляет деньги сыну-студенту.\n\nУточняющие вопросы: «Для чего вам эти средства?», «Когда они понадобятся?», «Как вы сейчас делаете переводы?»", 3, 2),
@@ -43,13 +44,19 @@
           "Молодая семья спрашивала про ипотеку. Уточнила, есть ли первоначальный взнос, сколько детей, какой бюджет на платёж. Рассказала про страхование как защиту семьи, а не как обязательную услугу.", 1, 0),
         a("K7M4Q2XA", 2, "Алматинский городской филиал", ["Карты", "Halyk Travel"],
           "Презентация: клиент часто летает в командировки. Показала карту с бонусами за путешествия и бронирование через Halyk Travel. Аргумент — бонусы покрывают часть перелёта.", 0, 5),
-        a("T2QX7HRS", 2, "Атырауский ОФ", ["Инвестиции"],
+        a("H9NC2VKE", 2, "Шымкентский городской филиал", ["Инвестиции"],
           "Клиент держит крупную сумму на текущем счёте. Предложил короткую презентацию инвестиционных продуктов по шаблону: цель, срок, риск. Записал диалог и разобрал — слишком много терминов в начале, в следующий раз начну с цели клиента.", 0, 2),
+        a("T2QX7HRS", 7, "Атырауский ОФ", ["Ипотека", "Страхование", "Депозиты"],
+          "Сложный кейс: семья продаёт квартиру и покупает дом, нужен бридж-период. Собрал комплексное решение: ипотека на новый дом, депозит для средств от продажи на 3 месяца, страхование недвижимости. Подготовил сравнение платежей в двух сценариях.", 1, 4),
+        a("W8BN3CFL", 7, "Карагандинский ОФ", ["БЗК", "Кредитные карты", "Halyk Super App"],
+          "Клиент — ИП с кассовыми разрывами. Предложил связку: кредитная карта для текущих расходов, БЗК на закуп и настройку уведомлений в Halyk Super App, чтобы не пропускать платежи. Клиент согласился на карту, по БЗК — вторая встреча.", 0, 6),
+        a("T2QX7HRS", 8, "Атырауский ОФ", ["Инвестиции", "Депозиты"],
+          "Сравнил депозит, облигации и брокерский счёт у нас и у двух конкурентов: доходность, ликвидность, риск. Для клиента подготовил три сценария: «сохранить», «умеренный рост», «максимальная доходность».", 0, 1),
       ],
       settings: {
         branches: BRANCHES,
         products: PRODUCTS,
-        deadlines: { 1: at18(4), 2: at18(11), 3: at18(18), 4: at18(25), 5: at18(32), 6: at18(39) },
+        deadlines: Object.fromEntries([...Array(12)].map((_, i) => [i + 1, at18(4 + (i % 6) * 7)])),
       },
       files: {},
       adminHash: ADMIN_PASSWORD,
@@ -71,13 +78,17 @@
     return code;
   };
   const admin = (pw) => { if (pw !== db.adminHash) fail("invalid_password"); };
+  const lessonLevel = (lesson) => (lesson >= 1 && lesson <= 6 ? "master" : lesson >= 7 && lesson <= 12 ? "expert" : null);
   const passed = (lesson) => { const d = db.settings.deadlines[lesson]; return d ? Date.now() > Date.parse(d) : false; };
   const view = (a, me) => ({ ...a, code: undefined, is_mine: a.code === me });
   const config = () => JSON.parse(JSON.stringify(db.settings));
 
   const api = {
     get_config: () => config(),
-    login: ({ p_code }) => { const code = participant(p_code); return { code, file_prefix: prefix(code) }; },
+    login: ({ p_code }) => {
+      const code = participant(p_code);
+      return { code, file_prefix: prefix(code), level: db.participants.find((p) => p.code === code).level };
+    },
     list_answers: ({ p_code }) => {
       const me = participant(p_code);
       return db.answers.map((a) => view(a, me)).sort((x, y) => y.updated_at.localeCompare(x.updated_at));
@@ -85,6 +96,7 @@
     save_answer: ({ p_code, p_lesson, p_branch, p_products, p_text, p_file, p_remove_file }) => {
       const code = participant(p_code);
       const text = String(p_text || "").trim();
+      if (lessonLevel(p_lesson) !== db.participants.find((p) => p.code === code).level) fail("bad_lesson");
       if (passed(p_lesson)) fail("deadline_passed");
       if (!db.settings.branches.includes(p_branch)) fail("bad_branch");
       if (!p_products?.length || p_products.some((p) => !db.settings.products.includes(p))) fail("bad_products");
@@ -121,14 +133,15 @@
       };
     },
     admin_answers: ({ p_password }) => (admin(p_password), db.answers.map((a) => ({ ...view(a, null), code: a.code }))),
-    admin_generate_codes: ({ p_password, p_count }) => {
+    admin_generate_codes: ({ p_password, p_count, p_level = "master" }) => {
       admin(p_password);
       if (!(p_count >= 1 && p_count <= 500)) fail("bad_count");
+      if (!["master", "expert"].includes(p_level)) fail("bad_level");
       const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
       const made = [];
       while (made.length < p_count) {
         const c = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => alphabet[b % alphabet.length]).join("");
-        if (!db.participants.some((p) => p.code === c)) { db.participants.push({ code: c, active: true, created_at: new Date().toISOString() }); made.push(c); }
+        if (!db.participants.some((p) => p.code === c)) { db.participants.push({ code: c, level: p_level, active: true, created_at: new Date().toISOString() }); made.push(c); }
       }
       save();
       return made;
@@ -139,6 +152,13 @@
       if (p) p.active = p_active;
       save();
       return null;
+    },
+    admin_set_level: ({ p_password, p_codes, p_level }) => {
+      admin(p_password);
+      let n = 0;
+      p_codes.map(norm).forEach((c) => { const p = db.participants.find((x) => x.code === c); if (p) { p.level = p_level; n++; } });
+      save();
+      return n;
     },
     admin_delete_answer: ({ p_password, p_id }) => { admin(p_password); db.answers = db.answers.filter((a) => a.id !== p_id); save(); return null; },
     admin_save_settings: ({ p_password, p_branches, p_products, p_deadlines }) => {
