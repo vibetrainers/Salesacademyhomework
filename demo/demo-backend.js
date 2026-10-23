@@ -1,7 +1,7 @@
 // Демо-режим: те же функции, что в supabase/schema.sql, но в браузере (localStorage).
 // Данные вымышленные и хранятся только на этом компьютере.
 (function () {
-  const KEY = "dz_demo_db_v2";
+  const KEY = "dz_demo_db_v3";
   const ADMIN_PASSWORD = "demo2026";
   const DAY = 864e5;
 
@@ -96,7 +96,7 @@
     save_answer: ({ p_code, p_lesson, p_branch, p_products, p_text, p_file, p_remove_file }) => {
       const code = participant(p_code);
       const text = String(p_text || "").trim();
-      if (lessonLevel(p_lesson) !== db.participants.find((p) => p.code === code).level) fail("bad_lesson");
+      if (!lessonLevel(p_lesson)) fail("bad_lesson");
       if (passed(p_lesson)) fail("deadline_passed");
       if (!db.settings.branches.includes(p_branch)) fail("bad_branch");
       if (!p_products?.length || p_products.some((p) => !db.settings.products.includes(p))) fail("bad_products");

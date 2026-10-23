@@ -18,8 +18,10 @@ function rewrite(html, home = "s-home") {
     .replace(/href="#\/"/g, `href="#${home}"`)
     // вкладки админки и кнопки входа/выхода — ссылки на соседние экраны
     .replace(/<button data-tab="(\w+)" class="([^"]*)"[^>]*>([^<]*)<\/button>/g, '<a class="tab-link $2" href="#s-admin-$1">$3</a>')
+    .replace(/<button role="tab" data-level-tab="(\w+)" class="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g,
+      (_, lv, cls, inner) => `<a class="${cls}" href="#${lv === "expert" ? "s-home-expert" : "s-home"}">${inner}</a>`)
     .replace(/<button class="ghost small" id="logoutBtn">Выйти<\/button>/, '<a class="tab-link" href="#s-login">Выйти</a>')
-    .replace(/<button type="submit" class="primary wide">Войти<\/button>/, '<a class="btn-link primary wide" href="#s-home">Войти как MASTER</a> <a class="btn-link wide" style="margin-top:8px" href="#s-home-expert">Войти как EXPERT</a>')
+    .replace(/<button type="submit" class="primary wide">Войти<\/button>/, '<a class="btn-link primary wide" href="#s-home">Войти</a>')
     .replace(/<button type="button" class="linkish switch" id="authSwitch">Вход для администратора<\/button>/,
       '<a class="linkish switch" href="#s-admin-progress">Вход для администратора</a>')
     .replace(/\sid="(topbar|app|meName|adminNav|logoutBtn|codeForm|adminForm|codeInput)"/g, "")
@@ -62,7 +64,7 @@ ${css}
 </head>
 <body>
 <div class="view-bar">Просмотр платформы — ввод здесь не сохраняется, данные вымышленные. Посмотреть как:
-  <a href="#s-home">участник MASTER</a> · <a href="#s-home-expert">участник EXPERT</a> · <a href="#s-admin-progress">администратор</a> · <a href="#s-login">экран входа</a></div>
+  <a href="#s-home">уроки MASTER</a> · <a href="#s-home-expert">уроки EXPERT</a> · <a href="#s-admin-progress">администратор</a> · <a href="#s-login">экран входа</a></div>
 ${sections}
 </body>
 </html>

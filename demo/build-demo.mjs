@@ -27,7 +27,7 @@ app = patch(app, "const fileUrl = (path) =>", "const fileUrl = (path) => window.
 const banner = `
   <div class="demo-bar">
     Демо-версия: данные вымышленные и сохраняются только на этом компьютере.
-    Коды участников: MASTER — <b>DEMO-2026</b>, EXPERT — <b>EXPT-2026</b>. Пароль администратора — <b>demo2026</b>.
+    Код участника — <b>DEMO-2026</b> (уровень выбирается на странице «Уроки»). Пароль администратора — <b>demo2026</b>.
     <button type="button" class="linkish" onclick="DEMO.reset()">Сбросить демо</button>
   </div>`;
 
