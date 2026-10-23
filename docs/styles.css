@@ -11,20 +11,22 @@
   --danger: #b93425;
   --warn-soft: #fff4dc;
   --chip: #eef1f0;
+  --expert: #b8501d;
+  --expert-soft: #fbe9df;
   --shadow: 0 1px 2px rgba(20,40,30,.05), 0 4px 16px rgba(20,40,30,.05);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #101513; --surface: #182019; --text: #e7ece9; --muted: #9aa7a1; --border: #2a3530;
     --accent: #2fb886; --accent-soft: #1b3a2d; --accent-text: #08130e; --danger: #ef7465;
-    --warn-soft: #3a3020; --chip: #232d28; --shadow: none;
+    --warn-soft: #3a3020; --chip: #232d28; --shadow: none; --expert: #f0916a; --expert-soft: #3a2519;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #101513; --surface: #182019; --text: #e7ece9; --muted: #9aa7a1; --border: #2a3530;
   --accent: #2fb886; --accent-soft: #1b3a2d; --accent-text: #08130e; --danger: #ef7465;
-  --warn-soft: #3a3020; --chip: #232d28; --shadow: none;
+  --warn-soft: #3a3020; --chip: #232d28; --shadow: none; --expert: #f0916a; --expert-soft: #3a2519;
   color-scheme: dark;
 }
 
@@ -223,3 +225,8 @@ input, select, textarea { font-size: 16px; } /* iOS не приближает п
 .small-note { font-size: 13px; margin: 10px 0 0; }
 button:focus-visible, a:focus-visible, .dropzone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 640px) { .filters select, .filters input { flex: 1 1 100%; } }
+.level-block { margin-bottom: 28px; }
+.level-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
+.level-badge { font-size: 13px; font-weight: 700; letter-spacing: .06em; padding: 4px 10px; border-radius: 6px; }
+.level-badge.master { background: var(--accent-soft); color: var(--accent); }
+.level-badge.expert { background: var(--expert-soft); color: var(--expert); }

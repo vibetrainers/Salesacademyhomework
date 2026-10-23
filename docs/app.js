@@ -1,20 +1,38 @@
 // Домашние задания: статический сайт (GitHub Pages) + Supabase.
 // Все данные идут через функции базы (supabase/schema.sql): участник передаёт свой код, админ — пароль.
 
+// Уроки 1–6 — уровень MASTER, 7–12 — EXPERT (номер урока внутри уровня — num)
+const LEVELS = {
+  master: { name: "MASTER", description: "Базовый уровень · уверенная работа с клиентом и эффективные продажи" },
+  expert: { name: "EXPERT", description: "Продвинутый уровень · сложные продажи, экспертность и влияние" },
+};
+
 const LESSONS = [
-  { id: 1, title: "Урок 1", description: "Понимание клиента и выявление потребностей", textOnly: true,
+  { id: 1, level: "master", num: 1, description: "Понимание клиента и выявление потребностей", textOnly: true,
     homework: ["Разобрать 2 реальных диалога из своей практики", "Подготовить список уточняющих вопросов для типовых ситуаций"] },
-  { id: 2, title: "Урок 2", description: "Презентация решений и аргументация",
+  { id: 2, level: "master", num: 2, description: "Презентация решений и аргументация",
     homework: ["Подготовить короткую презентацию одобренного решения по шаблону", "Практика: записать и разобрать свой диалог (аудио/текст)"] },
-  { id: 3, title: "Урок 3", description: "Работа с возражениями",
+  { id: 3, level: "master", num: 3, description: "Работа с возражениями",
     homework: ["Выбрать 3 сложных возражения из своей практики", "Подготовить варианты ответов и отработать их на практике"] },
-  { id: 4, title: "Урок 4", description: "Завершение сделки и следующий шаг",
+  { id: 4, level: "master", num: 4, description: "Завершение сделки и следующий шаг",
     homework: ["Разобрать 1 случай с одобренным кредитом: как довести клиента до принятия решения", "Составить план сопровождения клиента после встречи"] },
-  { id: 5, title: "Урок 5", description: "Клиентский сервис и лояльность",
+  { id: 5, level: "master", num: 5, description: "Клиентский сервис и лояльность",
     homework: ["Найти 1 ситуацию, где клиенту не подошёл основной продукт", "Предложить альтернативное решение и описать результат/выводы"] },
-  { id: 6, title: "Урок 6", description: "Практика и разбор кейсов",
+  { id: 6, level: "master", num: 6, description: "Практика и разбор кейсов",
     homework: ["Подготовить кейс из своей практики (успешный или сложный)", "Выявить, что можно было сделать иначе, и сформулировать 3 ключевых инсайта"] },
-];
+  { id: 7, level: "expert", num: 1, description: "Сложные продажи и комплексные решения",
+    homework: ["Разобрать сложный кейс (много продуктов / особые условия)", "Подготовить предложение комплексного решения"] },
+  { id: 8, level: "expert", num: 2, description: "Финансовые решения и продуктовая экспертиза",
+    homework: ["Изучить и сравнить 2–3 продукта Банка и конкурентов", "Подготовить рекомендации для клиента с разными сценариями"] },
+  { id: 9, level: "expert", num: 3, description: "Переговоры и достижение договорённостей",
+    homework: ["Разобрать свой переговорный кейс по шаблону", "Подготовить план переговоров"] },
+  { id: 10, level: "expert", num: 4, description: "Эмоциональный интеллект и влияние в коммуникации",
+    homework: ["Проанализировать свою реакцию в сложной ситуации", "Применить 2 техники управления эмоциями и описать результат"] },
+  { id: 11, level: "expert", num: 5, description: "Омниканальный клиентский опыт и цифровые инструменты",
+    homework: ["Использовать цифровой инструмент в своей работе", "Найти точку улучшения в клиентском пути и предложить решение"] },
+  { id: 12, level: "expert", num: 6, description: "Экспертность в продукте и создание ценности",
+    homework: ["Подготовить мини-консультацию для клиента (финансовый план / персональная рекомендация)", "Защитить решение на финальной сессии"] },
+].map((l) => ({ ...l, title: `Урок ${l.num}`, label: `${LEVELS[l.level].name} · Урок ${l.num}` }));
 
 const MAX_FILE_MB = 10;
 const ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.heic,.mp3,.m4a,.aac,.wav,.ogg";
@@ -31,6 +49,7 @@ const store = {
 const state = {
   code: store.get("dz_code"),
   filePrefix: store.get("dz_prefix"),
+  level: store.get("dz_level") || "master",
   adminPassword: store.get("dz_admin", sessionStorage),
   config: { branches: [], products: [], deadlines: {} },
   answers: [],
@@ -40,6 +59,11 @@ const state = {
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const lessonById = (id) => LESSONS.find((l) => l.id === Number(id));
+const lessonsOf = (level) => LESSONS.filter((l) => l.level === level);
+const levelOptions = (selected = "") =>
+  Object.entries(LEVELS).map(([k, v]) => `<option value="${k}" ${k === selected ? "selected" : ""}>${v.name}</option>`).join("");
+const lessonOptions = () =>
+  Object.entries(LEVELS).map(([k, v]) => `<optgroup label="${v.name}">${lessonsOf(k).map((l) => `<option value="${l.id}">${esc(l.title)} — ${esc(l.description)}</option>`).join("")}</optgroup>`).join("");
 const formatDate = (iso) => new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: TZ });
 const formatFull = (iso) => new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TZ });
 const formatDay = (iso) => new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: TZ });
@@ -145,6 +169,7 @@ async function loadData() {
 function logout() {
   store.set("dz_code", null);
   store.set("dz_prefix", null);
+  store.set("dz_level", null);
   store.set("dz_admin", null, sessionStorage);
   Object.assign(state, { code: null, filePrefix: null, adminPassword: null, answers: [] });
   if (location.hash !== "#/") location.hash = "#/";
@@ -181,10 +206,11 @@ function renderAuth() {
     error.textContent = "";
     btn.disabled = true;
     try {
-      const { code, file_prefix } = await rpc("login", { p_code: codeForm.code.value });
+      const { code, file_prefix, level } = await rpc("login", { p_code: codeForm.code.value });
       store.set("dz_code", code);
       store.set("dz_prefix", file_prefix);
-      Object.assign(state, { code, filePrefix: file_prefix });
+      store.set("dz_level", level);
+      Object.assign(state, { code, filePrefix: file_prefix, level });
       location.hash = "#/";
       route();
     } catch (err) {
@@ -220,7 +246,7 @@ function answerCard(a, { showLesson = false, allowDelete = false } = {}) {
       <div class="answer-head">
         <div>
           <div class="author">${esc(a.branch)}${a.is_mine ? ' <span class="badge ok">ваш ответ</span>' : ""}${a.code ? ` <span class="badge off">${esc(prettyCode(a.code))}</span>` : ""}</div>
-          <div class="answer-sub">${showLesson && lesson ? esc(lesson.title) + " · " : ""}${formatDate(a.updated_at)}</div>
+          <div class="answer-sub">${showLesson && lesson ? esc(lesson.label) + " · " : ""}${formatDate(a.updated_at)}</div>
         </div>
       </div>
       <div>${a.products.map((p) => `<span class="tag">${esc(p)}</span>`).join("")}</div>
@@ -265,18 +291,10 @@ function deadlineText(lessonId) {
 
 function renderHome() {
   const mine = new Set(state.answers.filter((a) => a.is_mine).map((a) => a.lesson_id));
-  app.innerHTML = `
-    <div class="page-head">
-      <div>
-        <h1>Уроки</h1>
-        <p class="muted">Выберите урок, чтобы сдать домашнее задание. До срока ответ можно менять.</p>
-      </div>
-      <a href="#/base"><button class="primary">База ответов</button></a>
-    </div>
-    <div class="grid">
-      ${LESSONS.map((l) => {
-        const total = state.answers.filter((a) => a.lesson_id === l.id).length;
-        return `
+  const levels = isAdmin() ? Object.keys(LEVELS) : [state.level];
+  const card = (l) => {
+    const total = state.answers.filter((a) => a.lesson_id === l.id).length;
+    return `
         <a class="card" href="#/lesson/${l.id}">
           <div class="lesson-num">${esc(l.title)}${l.textOnly ? " · только текст" : ""}</div>
           <h2>${esc(l.description)}</h2>
@@ -286,8 +304,20 @@ function renderHome() {
             ${isAdmin() ? "" : mine.has(l.id) ? '<span class="badge ok">Сдано</span>' : '<span class="badge todo">Не сдано</span>'}
           </div>
         </a>`;
-      }).join("")}
-    </div>`;
+  };
+  app.innerHTML = `
+    <div class="page-head">
+      <div>
+        <h1>Уроки</h1>
+        <p class="muted">Выберите урок, чтобы сдать домашнее задание. До срока ответ можно менять.</p>
+      </div>
+      <a href="#/base"><button class="primary">База ответов</button></a>
+    </div>
+    ${levels.map((lv) => `
+      <section class="level-block">
+        <div class="level-head"><span class="level-badge ${lv}">${LEVELS[lv].name}</span><span class="muted">${esc(LEVELS[lv].description)}</span></div>
+        <div class="grid">${lessonsOf(lv).map(card).join("")}</div>
+      </section>`).join("")}`;
 }
 
 function plural(n, one, few, many) {
@@ -298,7 +328,7 @@ function plural(n, one, few, many) {
 
 function renderLesson(id, { editing = false } = {}) {
   const lesson = lessonById(id);
-  if (!lesson) return (location.hash = "#/");
+  if (!lesson || (!isAdmin() && lesson.level !== state.level)) return (location.hash = "#/");
   const mine = state.answers.find((a) => a.is_mine && a.lesson_id === id);
   const others = state.answers.filter((a) => a.lesson_id === id && !a.is_mine);
   const d = deadlineOf(id);
@@ -326,7 +356,7 @@ function renderLesson(id, { editing = false } = {}) {
   app.innerHTML = `
     <a href="#/" class="back">← Все уроки</a>
     <div class="page-head"><div>
-      <div class="lesson-num">${esc(lesson.title)}</div>
+      <div class="lesson-num">${esc(lesson.label)}</div>
       <h1>${esc(lesson.description)}</h1>
       ${deadlineText(id)}
     </div></div>
@@ -485,7 +515,7 @@ function bindAnswerForm(lesson, mine) {
 
 // ---------- База ответов ----------
 
-const filters = { lesson: "", branch: "", product: "", q: "" };
+const filters = { level: "", lesson: "", branch: "", product: "", q: "" };
 
 function renderBase() {
   const { branches, products } = state.config;
@@ -493,17 +523,16 @@ function renderBase() {
     <div class="page-head">
       <div>
         <h1>База ответов</h1>
-        <p class="muted">Ответы всех участников. Ищите по продукту, уроку и филиалу.</p>
+        <p class="muted">Ответы всех участников. Ищите по продукту, уровню, уроку и филиалу.</p>
       </div>
     </div>
     <div class="filters">
       <label class="sr-only" for="fq">Поиск</label>
       <input type="search" id="fq" placeholder="Поиск по тексту…" value="${esc(filters.q)}" />
+      <label class="sr-only" for="fLevel">Уровень</label>
+      <select id="fLevel"><option value="">Все уровни</option>${levelOptions()}</select>
       <label class="sr-only" for="fLesson">Урок</label>
-      <select id="fLesson">
-        <option value="">Все уроки</option>
-        ${LESSONS.map((l) => `<option value="${l.id}">${esc(l.title)} — ${esc(l.description)}</option>`).join("")}
-      </select>
+      <select id="fLesson"><option value="">Все уроки</option>${lessonOptions()}</select>
       <label class="sr-only" for="fBranch">Филиал</label>
       <select id="fBranch">
         <option value="">Все филиалы</option>
@@ -514,8 +543,10 @@ function renderBase() {
     <div class="answers" id="baseAnswers"></div>`;
 
   const fq = document.getElementById("fq");
+  const fLevel = document.getElementById("fLevel");
   const fLesson = document.getElementById("fLesson");
   const fBranch = document.getElementById("fBranch");
+  fLevel.value = filters.level;
   fLesson.value = filters.lesson;
   fBranch.value = filters.branch;
   const list = document.getElementById("baseAnswers");
@@ -525,6 +556,7 @@ function renderBase() {
     const q = filters.q.toLowerCase();
     const scoped = state.answers.filter(
       (a) =>
+        (!filters.level || lessonById(a.lesson_id)?.level === filters.level) &&
         (!filters.lesson || a.lesson_id === Number(filters.lesson)) &&
         (!filters.branch || a.branch === filters.branch) &&
         (!q || `${a.text} ${a.file_name ?? ""} ${a.branch}`.toLowerCase().includes(q))
@@ -552,6 +584,7 @@ function renderBase() {
   });
   let t;
   fq.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { filters.q = fq.value.trim(); draw(); }, 250); });
+  fLevel.addEventListener("change", () => { filters.level = fLevel.value; draw(); });
   fLesson.addEventListener("change", () => { filters.lesson = fLesson.value; draw(); });
   fBranch.addEventListener("change", () => { filters.branch = fBranch.value; draw(); });
   bindCards(list, async () => { await loadData(); draw(); });
@@ -583,56 +616,81 @@ async function renderAdmin() {
   ({ progress: adminProgress, codes: adminCodes, export: adminExport, settings: adminSettings })[adminTab](body, overview);
 }
 
+// Участник считается по урокам своего уровня (MASTER — 1–6, EXPERT — 7–12)
+const doneIn = (p) => p.lessons.filter((id) => lessonById(id)?.level === p.level);
+
 function adminProgress(body, { participants, answers }) {
-  const active = participants.filter((p) => p.active);
-  const all6 = active.filter((p) => p.lessons.length === LESSONS.length).length;
+  const levelSection = (lv) => {
+    const people = participants.filter((p) => p.level === lv);
+    const active = people.filter((p) => p.active);
+    const lessons = lessonsOf(lv);
+    const all6 = active.filter((p) => doneIn(p).length === lessons.length).length;
+    return `
+      <section class="level-block">
+        <div class="level-head"><span class="level-badge ${lv}">${LEVELS[lv].name}</span>
+          <span class="muted">активных кодов: ${active.length} · сдали все ${lessons.length} уроков: ${all6}</span></div>
+        ${lessons.map((l) => {
+          const n = active.filter((p) => p.lessons.includes(l.id)).length;
+          return `<div class="deadline-row"><span>${esc(l.title)}: сдали ${n} из ${active.length}</span>${deadlineText(l.id)}</div>`;
+        }).join("")}
+        <div class="card table-wrap" style="margin-top:12px">
+          ${people.length ? `
+          <table class="progress">
+            <thead><tr><th>Код</th><th>Филиал</th>${lessons.map((l) => `<th title="${esc(l.description)}">У${l.num}</th>`).join("")}<th>Сдано</th></tr></thead>
+            <tbody>${people.map((p) => `<tr>
+              <td>${esc(prettyCode(p.code))}${p.active ? "" : ' <span class="badge off">откл.</span>'}</td>
+              <td>${esc(p.branch || "—")}</td>
+              ${lessons.map((l) => (p.lessons.includes(l.id) ? '<td class="done">✓</td>' : '<td class="miss">—</td>')).join("")}
+              <td>${doneIn(p).length} / ${lessons.length}</td>
+            </tr>`).join("")}</tbody>
+          </table>` : `<div class="empty">Кодов уровня ${LEVELS[lv].name} пока нет. Создайте их на вкладке «Коды участников».</div>`}
+        </div>
+      </section>`;
+  };
   body.innerHTML = `
     <div class="stats">
-      <div class="card stat"><div class="value">${active.length}</div><div class="label">активных кодов</div></div>
+      <div class="card stat"><div class="value">${participants.filter((p) => p.active).length}</div><div class="label">активных кодов</div></div>
       <div class="card stat"><div class="value">${answers}</div><div class="label">ответов</div></div>
-      <div class="card stat"><div class="value">${all6}</div><div class="label">сдали все 6 уроков</div></div>
     </div>
-    ${LESSONS.map((l) => {
-      const n = active.filter((p) => p.lessons.includes(l.id)).length;
-      return `<div class="deadline-row"><span>${esc(l.title)}: сдали ${n} из ${active.length}</span>${deadlineText(l.id)}</div>`;
-    }).join("")}
-    <div class="card table-wrap" style="margin-top:16px">
-      ${participants.length ? `
-      <table class="progress">
-        <thead><tr><th>Код</th><th>Филиал</th>${LESSONS.map((l) => `<th title="${esc(l.description)}">У${l.id}</th>`).join("")}<th>Сдано</th></tr></thead>
-        <tbody>${participants.map((p) => `<tr>
-          <td>${esc(prettyCode(p.code))}${p.active ? "" : ' <span class="badge off">откл.</span>'}</td>
-          <td>${esc(p.branch || "—")}</td>
-          ${LESSONS.map((l) => (p.lessons.includes(l.id) ? '<td class="done">✓</td>' : '<td class="miss">—</td>')).join("")}
-          <td>${p.lessons.length} / ${LESSONS.length}</td>
-        </tr>`).join("")}</tbody>
-      </table>` : `<div class="empty">Кодов пока нет. Создайте их на вкладке «Коды участников».</div>`}
-    </div>`;
+    ${Object.keys(LEVELS).map(levelSection).join("")}`;
 }
 
 function adminCodes(body, { participants }) {
+  const count = (lv) => participants.filter((p) => p.level === lv).length;
   body.innerHTML = `
     <form class="card" id="genForm">
       <h2>Создать коды</h2>
       <p class="muted">Каждому участнику — свой код. Раздайте коды и запишите у себя, кому какой выдан: в системе хранятся только коды.</p>
       <div class="inline-form">
         <label for="genCount">Сколько кодов<input id="genCount" type="number" min="1" max="500" value="10" required></label>
+        <label for="genLevel">Уровень<select id="genLevel">${levelOptions("master")}</select></label>
         <button class="primary" type="submit">Создать</button>
       </div>
       <div id="newCodes"></div>
     </form>
+    <form class="card" id="levelForm" style="margin-top:16px">
+      <h2>Перевести коды на другой уровень</h2>
+      <p class="muted">Вставьте коды — каждый с новой строки или через запятую. Ответы, уже отправленные на прежнем уровне, сохранятся.</p>
+      <label for="levelCodes" class="sr-only">Коды</label>
+      <textarea id="levelCodes" placeholder="ABCD-2345&#10;EFGH-6789" style="min-height:110px"></textarea>
+      <div class="inline-form" style="margin-top:10px">
+        <label for="levelTarget">Новый уровень<select id="levelTarget">${levelOptions("expert")}</select></label>
+        <button class="primary" type="submit">Перевести</button>
+      </div>
+    </form>
     <div class="card" style="margin-top:16px">
       <div class="page-head" style="margin-bottom:8px">
-        <h2>Все коды · ${participants.length}</h2>
+        <h2>Все коды · ${participants.length} <span class="muted" style="font-size:14px;font-weight:400">(MASTER — ${count("master")}, EXPERT — ${count("expert")})</span></h2>
         <button id="codesXlsx" ${participants.length ? "" : "disabled"}>Скачать список (Excel)</button>
       </div>
       <div class="table-wrap">
         <table class="progress">
-          <thead><tr><th>Код</th><th>Статус</th><th>Сдано</th><th></th></tr></thead>
+          <thead><tr><th>Код</th><th>Уровень</th><th>Статус</th><th>Сдано</th><th></th></tr></thead>
           <tbody>${participants.map((p) => `<tr>
             <td>${esc(prettyCode(p.code))}</td>
+            <td><select data-level-code="${esc(p.code)}" aria-label="Уровень кода ${esc(prettyCode(p.code))}">${levelOptions(p.level)}</select></td>
             <td>${p.active ? '<span class="badge ok">активен</span>' : '<span class="badge off">отключён</span>'}</td>
-            <td>${p.lessons.length} / ${LESSONS.length}</td>
+            <td>${doneIn(p).length} / ${lessonsOf(p.level).length}</td>
             <td><button class="linkish" data-toggle="${esc(p.code)}" data-active="${p.active}">${p.active ? "Отключить" : "Включить"}</button></td>
           </tr>`).join("")}</tbody>
         </table>
@@ -642,23 +700,51 @@ function adminCodes(body, { participants }) {
   document.getElementById("genForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const n = Number(document.getElementById("genCount").value);
+    const level = document.getElementById("genLevel").value;
     try {
-      const codes = await rpc("admin_generate_codes", { p_password: state.adminPassword, p_count: n });
+      const codes = await rpc("admin_generate_codes", { p_password: state.adminPassword, p_count: n, p_level: level });
       await renderAdmin();
       document.getElementById("newCodes").innerHTML = `
-        <p class="ok-text">Создано кодов: ${codes.length}</p>
+        <p class="ok-text">Создано кодов уровня ${LEVELS[level].name}: ${codes.length}</p>
         <div class="code-list">${codes.map((c) => `<span>${esc(prettyCode(c))}</span>`).join("")}</div>
         <button type="button" id="newCodesXlsx">Скачать новые коды (Excel)</button>`;
       document.getElementById("newCodesXlsx").onclick = () =>
-        downloadXlsx("novye-kody", [["Новые коды", codes.map((c) => ({ "Код": prettyCode(c), "Кому выдан (заполните сами)": "" }))]]);
+        downloadXlsx(`novye-kody-${level}`, [["Новые коды", codes.map((c) => ({ "Код": prettyCode(c), "Уровень": LEVELS[level].name, "Кому выдан (заполните сами)": "" }))]]);
     } catch (err) {
       toast(err.message);
     }
   });
+
+  document.getElementById("levelForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const codes = document.getElementById("levelCodes").value.split(/[\s,;]+/).map((c) => c.trim()).filter(Boolean);
+    const level = document.getElementById("levelTarget").value;
+    if (!codes.length) return toast("Вставьте хотя бы один код");
+    try {
+      const n = await rpc("admin_set_level", { p_password: state.adminPassword, p_codes: codes, p_level: level });
+      toast(`Переведено на ${LEVELS[level].name}: ${n} из ${codes.length}`);
+      renderAdmin();
+    } catch (err) {
+      toast(err.message);
+    }
+  });
+
+  body.querySelectorAll("[data-level-code]").forEach((sel) =>
+    sel.addEventListener("change", async () => {
+      try {
+        await rpc("admin_set_level", { p_password: state.adminPassword, p_codes: [sel.dataset.levelCode], p_level: sel.value });
+        toast(`Код ${prettyCode(sel.dataset.levelCode)} — уровень ${LEVELS[sel.value].name}`);
+        renderAdmin();
+      } catch (err) {
+        toast(err.message);
+      }
+    })
+  );
+
   document.getElementById("codesXlsx").onclick = () =>
     downloadXlsx("kody-uchastnikov", [["Коды", participants.map((p) => ({
-      "Код": prettyCode(p.code), "Статус": p.active ? "активен" : "отключён", "Сдано уроков": p.lessons.length,
-      "Создан": formatFull(p.created_at), "Кому выдан (заполните сами)": "",
+      "Код": prettyCode(p.code), "Уровень": LEVELS[p.level].name, "Статус": p.active ? "активен" : "отключён",
+      "Сдано уроков": doneIn(p).length, "Создан": formatFull(p.created_at), "Кому выдан (заполните сами)": "",
     }))]]);
   body.querySelectorAll("[data-toggle]").forEach((b) =>
     b.addEventListener("click", async () => {
@@ -679,11 +765,12 @@ function adminExport(body, { participants }) {
   body.innerHTML = `
     <form class="card" id="exportForm">
       <h2>Выгрузка ответов в Excel</h2>
-      <p class="muted">В файле два листа: «Ответы» (с учётом фильтров) и «Сдача» — кто какие уроки сдал.</p>
+      <p class="muted">В файле листы: «Ответы» (с учётом фильтров) и «Сдача MASTER», «Сдача EXPERT» — кто какие уроки сдал.</p>
       <div class="filters">
-        <select id="xLesson"><option value="">Все уроки</option>${LESSONS.map((l) => `<option value="${l.id}">${esc(l.title)} — ${esc(l.description)}</option>`).join("")}</select>
-        <select id="xBranch"><option value="">Все филиалы</option>${branches.map((b) => `<option>${esc(b)}</option>`).join("")}</select>
-        <select id="xProduct"><option value="">Все продукты</option>${products.map((p) => `<option>${esc(p)}</option>`).join("")}</select>
+        <select id="xLevel" aria-label="Уровень"><option value="">Все уровни</option>${levelOptions()}</select>
+        <select id="xLesson" aria-label="Урок"><option value="">Все уроки</option>${lessonOptions()}</select>
+        <select id="xBranch" aria-label="Филиал"><option value="">Все филиалы</option>${branches.map((b) => `<option>${esc(b)}</option>`).join("")}</select>
+        <select id="xProduct" aria-label="Продукт"><option value="">Все продукты</option>${products.map((p) => `<option>${esc(p)}</option>`).join("")}</select>
       </div>
       <button class="primary" type="submit">Скачать Excel</button>
     </form>`;
@@ -693,24 +780,30 @@ function adminExport(body, { participants }) {
     btn.disabled = true;
     try {
       const all = await rpc("admin_answers", { p_password: state.adminPassword });
+      const level = document.getElementById("xLevel").value;
       const lesson = Number(document.getElementById("xLesson").value) || null;
       const branch = document.getElementById("xBranch").value;
       const product = document.getElementById("xProduct").value;
       const rows = all
-        .filter((a) => (!lesson || a.lesson_id === lesson) && (!branch || a.branch === branch) && (!product || a.products.includes(product)))
-        .map((a) => ({
-          "Урок": lessonById(a.lesson_id)?.title, "Тема урока": lessonById(a.lesson_id)?.description,
-          "Код участника": prettyCode(a.code), "Филиал": a.branch, "Продукты": a.products.join(", "),
-          "Ответ": a.text, "Файл": a.file_path ? fileUrl(a.file_path) : "",
-          "Отправлен": formatFull(a.created_at), "Изменён": formatFull(a.updated_at),
-        }));
-      const progress = participants.map((p) => {
+        .filter((a) => (!level || lessonById(a.lesson_id)?.level === level) && (!lesson || a.lesson_id === lesson) &&
+          (!branch || a.branch === branch) && (!product || a.products.includes(product)))
+        .map((a) => {
+          const l = lessonById(a.lesson_id);
+          return {
+            "Уровень": LEVELS[l?.level]?.name, "Урок": l?.title, "Тема урока": l?.description,
+            "Код участника": prettyCode(a.code), "Филиал": a.branch, "Продукты": a.products.join(", "),
+            "Ответ": a.text, "Файл": a.file_path ? fileUrl(a.file_path) : "",
+            "Отправлен": formatFull(a.created_at), "Изменён": formatFull(a.updated_at),
+          };
+        });
+      const progress = (lv) => participants.filter((p) => p.level === lv).map((p) => {
         const row = { "Код": prettyCode(p.code), "Статус": p.active ? "активен" : "отключён", "Филиал": p.branch || "" };
-        LESSONS.forEach((l) => (row[l.title] = p.lessons.includes(l.id) ? "сдано" : ""));
-        row["Всего"] = p.lessons.length;
+        lessonsOf(lv).forEach((l) => (row[l.title] = p.lessons.includes(l.id) ? "сдано" : ""));
+        row["Всего"] = doneIn(p).length;
         return row;
       });
-      await downloadXlsx(lesson ? `otvety-urok-${lesson}` : "otvety", [["Ответы", rows], ["Сдача", progress]]);
+      const name = lesson ? `otvety-${lessonById(lesson).level}-urok-${lessonById(lesson).num}` : level ? `otvety-${level}` : "otvety";
+      await downloadXlsx(name, [["Ответы", rows], ["Сдача MASTER", progress("master")], ["Сдача EXPERT", progress("expert")]]);
     } catch (err) {
       toast(err.message);
     } finally {
@@ -728,6 +821,7 @@ function adminSettings(body) {
       <h2>Сроки сдачи</h2>
       <p class="muted">До указанных даты и времени (по Алматы) участники могут сдать и изменить ответ. Пустое поле — без срока.</p>
       ${LESSONS.map((l) => `
+        ${l.num === 1 ? `<div class="level-head" style="margin-top:14px"><span class="level-badge ${l.level}">${LEVELS[l.level].name}</span></div>` : ""}
         <div class="deadline-row">
           <label for="dl${l.id}">${esc(l.title)} — ${esc(l.description)}</label>
           <input type="datetime-local" id="dl${l.id}" value="${dateValue(deadlines[l.id])}">
@@ -812,7 +906,7 @@ async function route() {
   const hash = location.hash || "#/";
   document.getElementById("topbar").hidden = false;
   document.getElementById("adminNav").hidden = !isAdmin();
-  document.getElementById("meName").textContent = isAdmin() ? "Администратор" : `Код ${prettyCode(state.code)}`;
+  document.getElementById("meName").textContent = isAdmin() ? "Администратор" : `${LEVELS[state.level]?.name || ""} · код ${prettyCode(state.code)}`;
   const section = hash.startsWith("#/base") ? "base" : hash.startsWith("#/admin") ? "admin" : "home";
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === section));
 

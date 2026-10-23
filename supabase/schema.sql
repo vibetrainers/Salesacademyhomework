@@ -16,13 +16,14 @@ end $$;
 create table if not exists public.participants (
   code text primary key,
   active boolean not null default true,
+  level text not null default 'master' check (level in ('master', 'expert')),
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.answers (
   id uuid primary key default gen_random_uuid(),
   code text not null references public.participants(code) on delete cascade,
-  lesson_id int not null check (lesson_id between 1 and 6),
+  lesson_id int not null check (lesson_id between 1 and 12),
   branch text not null,
   products text[] not null,
   text text not null default '',
@@ -38,6 +39,16 @@ create table if not exists public.settings (
   key text primary key,
   value jsonb not null
 );
+
+-- Обновление уже созданной базы: уровни MASTER/EXPERT и 12 уроков (1–6 MASTER, 7–12 EXPERT)
+alter table public.participants add column if not exists level text not null default 'master';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'participants_level_check') then
+    alter table public.participants add constraint participants_level_check check (level in ('master', 'expert'));
+  end if;
+end $$;
+alter table public.answers drop constraint if exists answers_lesson_id_check;
+alter table public.answers add constraint answers_lesson_id_check check (lesson_id between 1 and 12);
 
 alter table public.participants enable row level security;
 alter table public.answers enable row level security;
@@ -79,6 +90,9 @@ begin
   end if;
 end $$;
 
+create or replace function public._lesson_level(p_lesson int) returns text
+language sql immutable as $$ select case when p_lesson between 1 and 6 then 'master' when p_lesson between 7 and 12 then 'expert' end $$;
+
 create or replace function public._setting(p_key text) returns jsonb
 language sql stable security definer set search_path = public as $$
   select value from settings where key = p_key
@@ -108,7 +122,7 @@ create or replace function public.login(p_code text) returns jsonb
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare c text := _participant(p_code);
 begin
-  return jsonb_build_object('code', c, 'file_prefix', _file_prefix(c));
+  return jsonb_build_object('code', c, 'file_prefix', _file_prefix(c), 'level', (select level from participants where code = c));
 end $$;
 
 -- Все ответы без кодов авторов: другие видят филиал, продукты и сам ответ
@@ -131,7 +145,7 @@ declare
   f_path text; f_name text; f_type text;
   saved answers;
 begin
-  if p_lesson is null or p_lesson not between 1 and 6 then raise exception 'bad_lesson'; end if;
+  if _lesson_level(p_lesson) is distinct from (select level from participants where code = c) then raise exception 'bad_lesson'; end if;
   if _deadline_passed(p_lesson) then raise exception 'deadline_passed'; end if;
   if not (_setting('branches') ? coalesce(p_branch, '')) then raise exception 'bad_branch'; end if;
   if coalesce(cardinality(p_products), 0) = 0
@@ -188,7 +202,7 @@ begin
   return jsonb_build_object(
     'participants', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'code', p.code, 'active', p.active, 'created_at', p.created_at,
+        'code', p.code, 'active', p.active, 'level', p.level, 'created_at', p.created_at,
         'lessons', coalesce((select jsonb_agg(a.lesson_id order by a.lesson_id) from answers a where a.code = p.code), '[]'),
         'branch', (select a.branch from answers a where a.code = p.code order by a.updated_at desc limit 1)
       ) order by p.created_at, p.code) from participants p), '[]'),
@@ -206,7 +220,8 @@ begin
     from answers a), '[]');
 end $$;
 
-create or replace function public.admin_generate_codes(p_password text, p_count int) returns jsonb
+drop function if exists public.admin_generate_codes(text, int);
+create or replace function public.admin_generate_codes(p_password text, p_count int, p_level text default 'master') returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -215,10 +230,11 @@ declare
 begin
   perform _admin(p_password);
   if p_count is null or p_count not between 1 and 500 then raise exception 'bad_count'; end if;
+  if p_level not in ('master', 'expert') then raise exception 'bad_level'; end if;
   while cardinality(made) < p_count loop
     select string_agg(substr(alphabet, 1 + (get_byte(b, i) % length(alphabet)), 1), '')
       into c from (select gen_random_bytes(8) b) r, generate_series(0, 7) i;
-    insert into participants (code) values (c) on conflict do nothing;
+    insert into participants (code, level) values (c, p_level) on conflict do nothing;
     if found then made := made || c; end if;
   end loop;
   return to_jsonb(made);
@@ -229,6 +245,18 @@ language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _admin(p_password);
   update participants set active = p_active where code = _norm_code(p_code);
+end $$;
+
+-- Перевести коды на другой уровень. Ответы на уроки прежнего уровня остаются в базе.
+create or replace function public.admin_set_level(p_password text, p_codes text[], p_level text) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare n int;
+begin
+  perform _admin(p_password);
+  if p_level not in ('master', 'expert') then raise exception 'bad_level'; end if;
+  update participants set level = p_level where code in (select _norm_code(x) from unnest(p_codes) x);
+  get diagnostics n = row_count;
+  return n;
 end $$;
 
 create or replace function public.admin_delete_answer(p_password text, p_id uuid) returns void
@@ -269,7 +297,8 @@ grant execute on function
   public.save_answer(text, int, text, text[], text, jsonb, boolean), public.delete_answer(text, int),
   public.is_upload_prefix(text),
   public.admin_login(text), public.admin_overview(text), public.admin_answers(text),
-  public.admin_generate_codes(text, int), public.admin_set_active(text, text, boolean),
+  public.admin_generate_codes(text, int, text), public.admin_set_active(text, text, boolean),
+  public.admin_set_level(text, text[], text),
   public.admin_delete_answer(text, uuid), public.admin_save_settings(text, jsonb, jsonb, jsonb),
   public.admin_set_password(text, text)
 to anon;
