@@ -39,7 +39,8 @@ const css = read("../docs/styles.css") + `
 `;
 
 const safe = (js) => js.replace(/<\/script/gi, "<\\/script");
-let html = read("../docs/index.html");
+// номер версии (?v=…) на файлах нужен только опубликованному сайту
+let html = read("../docs/index.html").replace(/\?v=\d+/g, "");
 html = patch(html, '<link rel="stylesheet" href="styles.css" />', `<style>\n${css}\n</style>`);
 html = patch(html, "<title>Домашние задания</title>", "<title>Домашние задания — демо</title>");
 html = patch(html, "<body>\n", `<body>\n${banner}\n`);
