@@ -49,7 +49,7 @@ const store = {
 const state = {
   code: store.get("dz_code"),
   filePrefix: store.get("dz_prefix"),
-  level: store.get("dz_level") || "master",
+  tab: store.get("dz_tab") === "expert" ? "expert" : "master",
   adminPassword: store.get("dz_admin", sessionStorage),
   config: { branches: [], products: [], deadlines: {} },
   answers: [],
@@ -169,7 +169,6 @@ async function loadData() {
 function logout() {
   store.set("dz_code", null);
   store.set("dz_prefix", null);
-  store.set("dz_level", null);
   store.set("dz_admin", null, sessionStorage);
   Object.assign(state, { code: null, filePrefix: null, adminPassword: null, answers: [] });
   if (location.hash !== "#/") location.hash = "#/";
@@ -206,11 +205,10 @@ function renderAuth() {
     error.textContent = "";
     btn.disabled = true;
     try {
-      const { code, file_prefix, level } = await rpc("login", { p_code: codeForm.code.value });
+      const { code, file_prefix } = await rpc("login", { p_code: codeForm.code.value });
       store.set("dz_code", code);
       store.set("dz_prefix", file_prefix);
-      store.set("dz_level", level);
-      Object.assign(state, { code, filePrefix: file_prefix, level });
+      Object.assign(state, { code, filePrefix: file_prefix });
       location.hash = "#/";
       route();
     } catch (err) {
@@ -291,7 +289,7 @@ function deadlineText(lessonId) {
 
 function renderHome() {
   const mine = new Set(state.answers.filter((a) => a.is_mine).map((a) => a.lesson_id));
-  const levels = isAdmin() ? Object.keys(LEVELS) : [state.level];
+  const lv = state.tab;
   const card = (l) => {
     const total = state.answers.filter((a) => a.lesson_id === l.id).length;
     return `
@@ -309,15 +307,25 @@ function renderHome() {
     <div class="page-head">
       <div>
         <h1>Уроки</h1>
-        <p class="muted">Выберите урок, чтобы сдать домашнее задание. До срока ответ можно менять.</p>
+        <p class="muted">Выберите свой уровень и урок, чтобы сдать домашнее задание. До срока ответ можно менять.</p>
       </div>
       <a href="#/base"><button class="primary">База ответов</button></a>
     </div>
-    ${levels.map((lv) => `
-      <section class="level-block">
-        <div class="level-head"><span class="level-badge ${lv}">${LEVELS[lv].name}</span><span class="muted">${esc(LEVELS[lv].description)}</span></div>
-        <div class="grid">${lessonsOf(lv).map(card).join("")}</div>
-      </section>`).join("")}`;
+    <div class="level-tabs" role="tablist" aria-label="Уровень">
+      ${Object.entries(LEVELS).map(([k, v]) => `
+        <button role="tab" data-level-tab="${k}" class="level-tab ${k} ${k === lv ? "active" : ""}" aria-selected="${k === lv}">
+          <span class="level-tab-name">${v.name}</span><span class="level-tab-desc">${esc(v.description.split(" · ")[0])}</span>
+        </button>`).join("")}
+    </div>
+    <p class="muted level-note">${esc(LEVELS[lv].description)}</p>
+    <div class="grid">${lessonsOf(lv).map(card).join("")}</div>`;
+  app.querySelector(".level-tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-level-tab]");
+    if (!b || b.dataset.levelTab === state.tab) return;
+    state.tab = b.dataset.levelTab;
+    store.set("dz_tab", state.tab);
+    renderHome();
+  });
 }
 
 function plural(n, one, few, many) {
@@ -328,7 +336,8 @@ function plural(n, one, few, many) {
 
 function renderLesson(id, { editing = false } = {}) {
   const lesson = lessonById(id);
-  if (!lesson || (!isAdmin() && lesson.level !== state.level)) return (location.hash = "#/");
+  if (!lesson) return (location.hash = "#/");
+  if (state.tab !== lesson.level) { state.tab = lesson.level; store.set("dz_tab", state.tab); }
   const mine = state.answers.find((a) => a.is_mine && a.lesson_id === id);
   const others = state.answers.filter((a) => a.lesson_id === id && !a.is_mine);
   const d = deadlineOf(id);
@@ -616,22 +625,22 @@ async function renderAdmin() {
   ({ progress: adminProgress, codes: adminCodes, export: adminExport, settings: adminSettings })[adminTab](body, overview);
 }
 
-// Участник считается по урокам своего уровня (MASTER — 1–6, EXPERT — 7–12)
-const doneIn = (p) => p.lessons.filter((id) => lessonById(id)?.level === p.level);
+// Сданные участником уроки уровня (MASTER — 1–6, EXPERT — 7–12): уровень участник выбирает сам
+const doneIn = (p, lv) => p.lessons.filter((id) => lessonById(id)?.level === lv);
 
 function adminProgress(body, { participants, answers }) {
   const levelSection = (lv) => {
-    const people = participants.filter((p) => p.level === lv);
+    const people = participants.filter((p) => doneIn(p, lv).length);
     const active = people.filter((p) => p.active);
     const lessons = lessonsOf(lv);
-    const all6 = active.filter((p) => doneIn(p).length === lessons.length).length;
+    const all6 = active.filter((p) => doneIn(p, lv).length === lessons.length).length;
     return `
       <section class="level-block">
         <div class="level-head"><span class="level-badge ${lv}">${LEVELS[lv].name}</span>
-          <span class="muted">активных кодов: ${active.length} · сдали все ${lessons.length} уроков: ${all6}</span></div>
+          <span class="muted">участников: ${active.length} · сдали все ${lessons.length} уроков: ${all6}</span></div>
         ${lessons.map((l) => {
           const n = active.filter((p) => p.lessons.includes(l.id)).length;
-          return `<div class="deadline-row"><span>${esc(l.title)}: сдали ${n} из ${active.length}</span>${deadlineText(l.id)}</div>`;
+          return `<div class="deadline-row"><span>${esc(l.title)}: сдали ${n}</span>${deadlineText(l.id)}</div>`;
         }).join("")}
         <div class="card table-wrap" style="margin-top:12px">
           ${people.length ? `
@@ -641,9 +650,9 @@ function adminProgress(body, { participants, answers }) {
               <td>${esc(prettyCode(p.code))}${p.active ? "" : ' <span class="badge off">откл.</span>'}</td>
               <td>${esc(p.branch || "—")}</td>
               ${lessons.map((l) => (p.lessons.includes(l.id) ? '<td class="done">✓</td>' : '<td class="miss">—</td>')).join("")}
-              <td>${doneIn(p).length} / ${lessons.length}</td>
+              <td>${doneIn(p, lv).length} / ${lessons.length}</td>
             </tr>`).join("")}</tbody>
-          </table>` : `<div class="empty">Кодов уровня ${LEVELS[lv].name} пока нет. Создайте их на вкладке «Коды участников».</div>`}
+          </table>` : `<div class="empty">Ответов по уровню ${LEVELS[lv].name} пока нет.</div>`}
         </div>
       </section>`;
   };
@@ -651,46 +660,35 @@ function adminProgress(body, { participants, answers }) {
     <div class="stats">
       <div class="card stat"><div class="value">${participants.filter((p) => p.active).length}</div><div class="label">активных кодов</div></div>
       <div class="card stat"><div class="value">${answers}</div><div class="label">ответов</div></div>
+      <div class="card stat"><div class="value">${participants.filter((p) => p.active && !p.lessons.length).length}</div><div class="label">ещё ничего не сдали</div></div>
     </div>
     ${Object.keys(LEVELS).map(levelSection).join("")}`;
 }
 
 function adminCodes(body, { participants }) {
-  const count = (lv) => participants.filter((p) => p.level === lv).length;
+  const done = (p) => Object.keys(LEVELS).map((lv) => `${LEVELS[lv].name} ${doneIn(p, lv).length}/${lessonsOf(lv).length}`).join(" · ");
   body.innerHTML = `
     <form class="card" id="genForm">
       <h2>Создать коды</h2>
-      <p class="muted">Каждому участнику — свой код. Раздайте коды и запишите у себя, кому какой выдан: в системе хранятся только коды.</p>
+      <p class="muted">Каждому участнику — свой код. Раздайте коды и запишите у себя, кому какой выдан: в системе хранятся только коды. Уровень (MASTER или EXPERT) участник выбирает сам на сайте.</p>
       <div class="inline-form">
         <label for="genCount">Сколько кодов<input id="genCount" type="number" min="1" max="500" value="10" required></label>
-        <label for="genLevel">Уровень<select id="genLevel">${levelOptions("master")}</select></label>
         <button class="primary" type="submit">Создать</button>
       </div>
       <div id="newCodes"></div>
     </form>
-    <form class="card" id="levelForm" style="margin-top:16px">
-      <h2>Перевести коды на другой уровень</h2>
-      <p class="muted">Вставьте коды — каждый с новой строки или через запятую. Ответы, уже отправленные на прежнем уровне, сохранятся.</p>
-      <label for="levelCodes" class="sr-only">Коды</label>
-      <textarea id="levelCodes" placeholder="ABCD-2345&#10;EFGH-6789" style="min-height:110px"></textarea>
-      <div class="inline-form" style="margin-top:10px">
-        <label for="levelTarget">Новый уровень<select id="levelTarget">${levelOptions("expert")}</select></label>
-        <button class="primary" type="submit">Перевести</button>
-      </div>
-    </form>
     <div class="card" style="margin-top:16px">
       <div class="page-head" style="margin-bottom:8px">
-        <h2>Все коды · ${participants.length} <span class="muted" style="font-size:14px;font-weight:400">(MASTER — ${count("master")}, EXPERT — ${count("expert")})</span></h2>
+        <h2>Все коды · ${participants.length}</h2>
         <button id="codesXlsx" ${participants.length ? "" : "disabled"}>Скачать список (Excel)</button>
       </div>
       <div class="table-wrap">
         <table class="progress">
-          <thead><tr><th>Код</th><th>Уровень</th><th>Статус</th><th>Сдано</th><th></th></tr></thead>
+          <thead><tr><th>Код</th><th>Статус</th><th>Сдано</th><th></th></tr></thead>
           <tbody>${participants.map((p) => `<tr>
             <td>${esc(prettyCode(p.code))}</td>
-            <td><select data-level-code="${esc(p.code)}" aria-label="Уровень кода ${esc(prettyCode(p.code))}">${levelOptions(p.level)}</select></td>
             <td>${p.active ? '<span class="badge ok">активен</span>' : '<span class="badge off">отключён</span>'}</td>
-            <td>${doneIn(p).length} / ${lessonsOf(p.level).length}</td>
+            <td>${done(p)}</td>
             <td><button class="linkish" data-toggle="${esc(p.code)}" data-active="${p.active}">${p.active ? "Отключить" : "Включить"}</button></td>
           </tr>`).join("")}</tbody>
         </table>
@@ -700,51 +698,24 @@ function adminCodes(body, { participants }) {
   document.getElementById("genForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const n = Number(document.getElementById("genCount").value);
-    const level = document.getElementById("genLevel").value;
     try {
-      const codes = await rpc("admin_generate_codes", { p_password: state.adminPassword, p_count: n, p_level: level });
+      const codes = await rpc("admin_generate_codes", { p_password: state.adminPassword, p_count: n });
       await renderAdmin();
       document.getElementById("newCodes").innerHTML = `
-        <p class="ok-text">Создано кодов уровня ${LEVELS[level].name}: ${codes.length}</p>
+        <p class="ok-text">Создано кодов: ${codes.length}</p>
         <div class="code-list">${codes.map((c) => `<span>${esc(prettyCode(c))}</span>`).join("")}</div>
         <button type="button" id="newCodesXlsx">Скачать новые коды (Excel)</button>`;
       document.getElementById("newCodesXlsx").onclick = () =>
-        downloadXlsx(`novye-kody-${level}`, [["Новые коды", codes.map((c) => ({ "Код": prettyCode(c), "Уровень": LEVELS[level].name, "Кому выдан (заполните сами)": "" }))]]);
+        downloadXlsx("novye-kody", [["Новые коды", codes.map((c) => ({ "Код": prettyCode(c), "Кому выдан (заполните сами)": "" }))]]);
     } catch (err) {
       toast(err.message);
     }
   });
-
-  document.getElementById("levelForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const codes = document.getElementById("levelCodes").value.split(/[\s,;]+/).map((c) => c.trim()).filter(Boolean);
-    const level = document.getElementById("levelTarget").value;
-    if (!codes.length) return toast("Вставьте хотя бы один код");
-    try {
-      const n = await rpc("admin_set_level", { p_password: state.adminPassword, p_codes: codes, p_level: level });
-      toast(`Переведено на ${LEVELS[level].name}: ${n} из ${codes.length}`);
-      renderAdmin();
-    } catch (err) {
-      toast(err.message);
-    }
-  });
-
-  body.querySelectorAll("[data-level-code]").forEach((sel) =>
-    sel.addEventListener("change", async () => {
-      try {
-        await rpc("admin_set_level", { p_password: state.adminPassword, p_codes: [sel.dataset.levelCode], p_level: sel.value });
-        toast(`Код ${prettyCode(sel.dataset.levelCode)} — уровень ${LEVELS[sel.value].name}`);
-        renderAdmin();
-      } catch (err) {
-        toast(err.message);
-      }
-    })
-  );
-
   document.getElementById("codesXlsx").onclick = () =>
     downloadXlsx("kody-uchastnikov", [["Коды", participants.map((p) => ({
-      "Код": prettyCode(p.code), "Уровень": LEVELS[p.level].name, "Статус": p.active ? "активен" : "отключён",
-      "Сдано уроков": doneIn(p).length, "Создан": formatFull(p.created_at), "Кому выдан (заполните сами)": "",
+      "Код": prettyCode(p.code), "Статус": p.active ? "активен" : "отключён",
+      "Сдано MASTER": doneIn(p, "master").length, "Сдано EXPERT": doneIn(p, "expert").length,
+      "Создан": formatFull(p.created_at), "Кому выдан (заполните сами)": "",
     }))]]);
   body.querySelectorAll("[data-toggle]").forEach((b) =>
     b.addEventListener("click", async () => {
@@ -796,10 +767,10 @@ function adminExport(body, { participants }) {
             "Отправлен": formatFull(a.created_at), "Изменён": formatFull(a.updated_at),
           };
         });
-      const progress = (lv) => participants.filter((p) => p.level === lv).map((p) => {
+      const progress = (lv) => participants.map((p) => {
         const row = { "Код": prettyCode(p.code), "Статус": p.active ? "активен" : "отключён", "Филиал": p.branch || "" };
         lessonsOf(lv).forEach((l) => (row[l.title] = p.lessons.includes(l.id) ? "сдано" : ""));
-        row["Всего"] = doneIn(p).length;
+        row["Всего"] = doneIn(p, lv).length;
         return row;
       });
       const name = lesson ? `otvety-${lessonById(lesson).level}-urok-${lessonById(lesson).num}` : level ? `otvety-${level}` : "otvety";
@@ -906,7 +877,7 @@ async function route() {
   const hash = location.hash || "#/";
   document.getElementById("topbar").hidden = false;
   document.getElementById("adminNav").hidden = !isAdmin();
-  document.getElementById("meName").textContent = isAdmin() ? "Администратор" : `${LEVELS[state.level]?.name || ""} · код ${prettyCode(state.code)}`;
+  document.getElementById("meName").textContent = isAdmin() ? "Администратор" : `Код ${prettyCode(state.code)}`;
   const section = hash.startsWith("#/base") ? "base" : hash.startsWith("#/admin") ? "admin" : "home";
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === section));
 

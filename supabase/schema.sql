@@ -145,7 +145,8 @@ declare
   f_path text; f_name text; f_type text;
   saved answers;
 begin
-  if _lesson_level(p_lesson) is distinct from (select level from participants where code = c) then raise exception 'bad_lesson'; end if;
+  -- уровень (MASTER 1–6, EXPERT 7–12) участник выбирает сам на сайте
+  if _lesson_level(p_lesson) is null then raise exception 'bad_lesson'; end if;
   if _deadline_passed(p_lesson) then raise exception 'deadline_passed'; end if;
   if not (_setting('branches') ? coalesce(p_branch, '')) then raise exception 'bad_branch'; end if;
   if coalesce(cardinality(p_products), 0) = 0

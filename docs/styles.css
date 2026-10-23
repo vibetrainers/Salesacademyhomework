@@ -230,3 +230,12 @@ button:focus-visible, a:focus-visible, .dropzone:focus-visible { outline: 2px so
 .level-badge { font-size: 13px; font-weight: 700; letter-spacing: .06em; padding: 4px 10px; border-radius: 6px; }
 .level-badge.master { background: var(--accent-soft); color: var(--accent); }
 .level-badge.expert { background: var(--expert-soft); color: var(--expert); }
+.level-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.level-tab { text-align: left; padding: 12px 16px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 2px; }
+.level-tab-name { font-weight: 700; letter-spacing: .06em; font-size: 16px; }
+.level-tab-desc { font-size: 13px; color: var(--muted); }
+.level-tab.master.active { border-color: var(--accent); background: var(--accent-soft); }
+.level-tab.master.active .level-tab-name { color: var(--accent); }
+.level-tab.expert.active { border-color: var(--expert); background: var(--expert-soft); }
+.level-tab.expert.active .level-tab-name { color: var(--expert); }
+.level-note { margin: 0 0 16px; font-size: 14px; }
